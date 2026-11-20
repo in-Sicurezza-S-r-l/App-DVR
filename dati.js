@@ -172,7 +172,7 @@ export async function scaricaAzienda(codice) {
       const valutazioni = vc.filter(v => String(v.Sostanza || "").toLowerCase() === String(x.Title || "").toLowerCase());
       return {
         id: x.IDSostanza || x._idLista, idLista: x._idLista, nome: x.Title || "", produttore: x.Produttore || "",
-        statoFisico: x.StatoFisico || "", frasiH: dividi(String(x.IndicazioniPericolo || "").replace(/,/g, ";")),
+        statoFisico: x.StatoFisico || "", frasiH: dividi(String(x.IndicazioniPericolo || "").replace(/[,\s]+/g, ";")).filter(h => /^(EU)?H\d/i.test(h)),
         mansioni: dividi(x.Mansioni), sds: vero(x.SDSDisponibile) || !!x.FileSDS, revisione: x.RevisioneSDS || "",
         avvisi: x.AvvisiSDS || "", esito: valutazioni.length ? "valutata (" + valutazioni.length + " mansioni)" : ""
       };

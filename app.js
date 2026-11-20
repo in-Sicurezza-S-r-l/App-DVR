@@ -3,7 +3,7 @@ import { initAuth, login, logout } from "./auth.js";
 import { scaricaAziende, aziendeSalvate, codiciConBozza, calcolaStato, nomeTecnico, MESI,
   scaricaAzienda, aziendaSalvata, scaricaFoto } from "./dati.js";
 import { UTENTE_ESEMPIO, PACCHETTO_ESEMPIO, BOZZE_ESEMPIO, aziendaEsempio } from "./esempio.js";
-import { SCALE, calcola, pericolo } from "./movarisch.js";
+import { SCALE, calcola, pericolo, trovaVoce } from "./movarisch.js";
 import { leggiSDS } from "./sds.js";
 import { bozzaVuota, leggiBozza, salvaBozza, eliminaBozza, contaModifiche, riepilogo, salvaFoto, leggiFoto, idBreve } from "./bozza.js";
 
@@ -539,7 +539,7 @@ function vistaSostanze() {
     <div class="box modulo">
       <label class="colonna"><span class="lbl">Nome commerciale</span><input type="text" id="f-nome" autocomplete="off"></label>
       <label class="colonna"><span class="lbl">Produttore</span><input type="text" id="f-prod" autocomplete="off"></label>
-      <label class="colonna"><span class="lbl">Stato fisico</span><select id="f-stato"><option>liquido</option><option>solido</option><option>polvere</option><option>aerosol</option><option>gas</option></select></label>
+      <label class="colonna"><span class="lbl">Stato fisico</span><select id="f-stato">${["Liquido", "Solido", "Polvere", "Granulare", "Aerosol", "Gas", "Nebbia", "Fumi"].map(o => `<option>${o}</option>`).join("")}</select></label>
       <label class="colonna"><span class="lbl">Frasi H (separate da spazio)</span><input type="text" id="f-h" placeholder="H225 H304" autocomplete="off"></label>
       <div class="colonna intero"><span class="lbl">Chi la usa</span>${sceltaMultipla("f-mans", M, [])}</div>
       <label class="colonna intero evidenza-sds"><span class="lbl">1. Carica la scheda di sicurezza (PDF): l'app legge nome, produttore, frasi H e stato fisico</span><input type="file" id="f-sds" accept="application/pdf"></label>
@@ -582,7 +582,7 @@ function vistaMovarisch() {
   const mansioni = [...new Set([...sost.mansioni, ...Object.keys(V), ...S.valMansExtra])];
   const altre = S.dettaglio.mansioni.filter(m => !mansioni.includes(m));
   const sel = (m, k, val) => `<label class="colonna"><span class="lbl">${SCALE[k].titolo}</span>
-    <select data-mv="${k}">${k === "tipo" ? "" : `<option value="">— scegli —</option>`}${SCALE[k].voci.map(([t]) => `<option ${val === t ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>`;
+    <select data-mv="${k}"><option value="">— scegli —</option>${SCALE[k].voci.map(([t]) => `<option ${val === t ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>`;
   return `
     <div class="riga-titolo">
       <button class="btn2" data-a="chiudi-mov">‹ Sostanze</button>
@@ -596,14 +596,14 @@ function vistaMovarisch() {
       ${P.dpi.length ? `<span class="sotto">DPI indicati dalle frasi H: ${esc(P.dpi.join(", "))}</span>` : ""}
     </div>
     ${mansioni.map(m => {
-      const v = V[m] || { tipo: SCALE.tipo.voci[0][0] }, r = calcola(sost.frasiH, v);
+      const v = V[m] || {}, r = calcola(sost.frasiH, v);
       return `
       <div class="box colonna mov" data-mans="${esc(m)}">
         <div class="riga-titolo" style="margin:0">
           <h3>${esc(m)}</h3>
           ${V[m] ? `<span class="chip ${V[m].origine === "bozza" ? "nuovo" : "fatto"}">${V[m].origine === "bozza" ? "valutata in questo sopralluogo" : "valutazione del " + esc(fmt(V[m].data))}</span>` : `<span class="chip bozza">da valutare</span>`}
         </div>
-        <div class="modulo">${["cf", "q", "u", "c", "t", "d", "k", "tipo"].map(k => sel(m, k, v[k])).join("")}</div>
+        <div class="modulo">${["cf", "q", "u", "c", "t", "d", "k"].map(k => sel(m, k, (trovaVoce(k, v[k]) || [])[0])).join("")}</div>
         <div class="esito-mov">${risultatoHtml(r)}</div>
         <div><button class="btn" data-a="salva-mov" data-v="${esc(m)}">Salva valutazione</button></div>
       </div>`;

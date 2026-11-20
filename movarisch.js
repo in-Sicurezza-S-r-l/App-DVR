@@ -26,18 +26,40 @@ const MAPPA = Object.fromEntries(FRASI.map(f => [f[0].toUpperCase(), f]));
 // Frasi che escludono la sostanza dal Capo I (cancerogeni/mutageni/tossici per la riproduzione 1A/1B → Titolo IX Capo II)
 const CAPO_II = ["H340", "H350", "H350I", "H360", "H360D", "H360F", "H360FD"];
 
+// Voci ESATTAMENTE come le scrive Power Apps in PD_ValChimica (✓ = verificata sull'esportazione del 20/11/2026;
+// le altre seguono lo stesso stile e vanno confermate). StatoFisico di PD_ValChimica = proprietà chimico-fisiche (CF).
+// PD_ValChimica non ha una colonna "tipo di esposizione": il calcolo è sempre cumulativo (inalatoria + cutanea).
 export const SCALE = {
   cf: { titolo: "Proprietà chimico-fisiche (CF)", voci: [
-    ["Solido o nebbie (largo spettro granulometrico)", 1], ["Liquido a bassa volatilità", 2],
-    ["Liquido ad alta o media volatilità, o polvere fine", 3], ["Gas", 4]] },
-  q: { titolo: "Quantità in uso (Q)", voci: [["Meno di 0,1 kg", 1], ["Tra 0,1 e 1 kg", 2], ["Tra 1 e 10 kg", 3], ["Tra 10 e 100 kg", 4], ["Più di 100 kg", 5]] },
-  u: { titolo: "Tipologia d'uso (U)", voci: [["Sistema chiuso", 1], ["Inclusione in matrice", 2], ["Uso controllato e non dispersivo", 3], ["Uso con dispersione significativa", 4]] },
-  c: { titolo: "Tipologia di controllo (C)", voci: [["Contenimento completo", 1], ["Aspirazione localizzata", 2], ["Segregazione / separazione", 3], ["Ventilazione generale", 4], ["Manipolazione diretta", 5]] },
-  t: { titolo: "Tempo di esposizione (T)", voci: [["Meno di 15 minuti", 1], ["Da 15 minuti a 2 ore", 2], ["Da 2 a 4 ore", 3], ["Da 4 a 6 ore", 4], ["Oltre 6 ore", 5]] },
-  d: { titolo: "Distanza dalla sorgente (d)", voci: [["Meno di 1 metro", 1], ["Da 1 a 3 metri", 0.75], ["Da 3 a 5 metri", 0.5], ["Da 5 a 10 metri", 0.25], ["10 metri o più", 0.1]] },
-  k: { titolo: "Contatto cutaneo", voci: [["Nessun contatto", 1], ["Contatto accidentale", 2], ["Contatto discontinuo", 3], ["Contatto esteso", 4]] },
-  tipo: { titolo: "Tipo di esposizione", voci: [["Cumulativa (inalatoria e cutanea)", "cum"], ["Solo inalatoria", "inal"], ["Solo cutanea", "cute"]] }
+    ["Stato solido / nebbie", 1], ["Liquido a bassa volatilità", 2] /* ✓ */,
+    ["Liquido ad alta o media volatilità / polveri fini", 3], ["Stato gassoso", 4]] },
+  q: { titolo: "Quantità in uso (Q)", voci: [["< 0,1 kg", 1] /* ✓ */, ["0,1 - 1 kg", 2] /* ✓ */, ["1 - 10 kg", 3], ["10 - 100 kg", 4], ["> 100 kg", 5]] },
+  u: { titolo: "Tipologia d'uso (U)", voci: [["Uso in sistema chiuso", 1], ["Uso in inclusione in matrice", 2],
+    ["Uso controllato e non dispersivo", 3] /* ✓ */, ["Uso con dispersione significativa", 4]] },
+  c: { titolo: "Tipologia di controllo (C)", voci: [["Contenimento completo", 1], ["Ventilazione - aspirazione locale", 2],
+    ["Segregazione - separazione", 3], ["Diluizione - ventilazione", 4] /* ✓ */, ["Manipolazione diretta", 5]] },
+  t: { titolo: "Tempo di esposizione (T)", voci: [["Inferiore a 15 minuti", 1] /* ✓ */, ["Tra 15 minuti e 2 ore", 2] /* ✓ */,
+    ["Tra 2 ore e 4 ore", 3], ["Tra 4 ore e 6 ore", 4], ["Oltre 6 ore", 5]] },
+  d: { titolo: "Distanza dalla sorgente (d)", voci: [["Inferiore a 1 metro", 1] /* ✓ */, ["Da 1 a 3 metri", 0.75],
+    ["Da 3 a 5 metri", 0.5], ["Da 5 a 10 metri", 0.25], ["Maggiore o uguale a 10 metri", 0.1]] },
+  k: { titolo: "Contatto cutaneo", voci: [["Nessun contatto", 1], ["Contatto accidentale", 2] /* ✓ */, ["Contatto discontinuo", 3], ["Contatto esteso", 4]] }
 };
+
+// Riconosce una voce anche se scritta in modo leggermente diverso (maiuscole, spazi, "Kg", vecchie etichette)
+const norm = t => String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/kg/g, "kg").replace(/[^a-z0-9<>,]+/g, "");
+const SINONIMI = {
+  q: { "menodi0,1kg": 1, "tra0,1e1kg": 2, "tra1e10kg": 3, "tra10e100kg": 4, "piudi100kg": 5 },
+  c: { "aspirazionelocalizzata": 2, "ventilazionegenerale": 4 },
+  cf: { "liquidoaltaomediavolatilita": 3, "gas": 4, "solidoonebbie": 1 }
+};
+export function trovaVoce(scala, testo) {
+  const n = norm(testo); if (!n) return null;
+  const v = SCALE[scala].voci.find(x => norm(x[0]) === n);
+  if (v) return v;
+  const s = SINONIMI[scala] && Object.entries(SINONIMI[scala]).find(([k]) => n.startsWith(k) || n.includes(k));
+  if (s) return SCALE[scala].voci.find(x => x[1] === s[1]);
+  return SCALE[scala].voci.find(x => n.includes(norm(x[0])) || norm(x[0]).includes(n)) || null;
+}
 
 export const CLASSI = [
   null,
@@ -49,7 +71,7 @@ export const CLASSI = [
 ];
 const DPI = { APVR: "protezione delle vie respiratorie", GUA: "guanti EN 374", OCC: "occhiali o visiera EN 166", TUT: "indumenti di protezione chimica" };
 
-const valore = (scala, etichetta) => { const v = SCALE[scala].voci.find(x => x[0] === etichetta); return v ? v[1] : null; };
+const valore = (scala, etichetta) => { const v = trovaVoce(scala, etichetta); return v ? v[1] : null; };
 const arrot = n => Math.round(n * 100) / 100;
 
 export function pericolo(frasiH) {
@@ -63,11 +85,11 @@ export function pericolo(frasiH) {
 
 export function classe(r) { return r < 15 ? 1 : r < 21 ? 2 : r < 40 ? 3 : r < 80 ? 4 : 5; }
 
-// v = { cf, q, u, c, t, d, k, tipo } con le etichette delle scale
+// v = { cf, q, u, c, t, d, k } con le etichette delle scale (esposizione sempre cumulativa, come in PD_ValChimica)
 export function calcola(frasiH, v) {
   const P = pericolo(frasiH);
   const cf = valore("cf", v.cf), q = valore("q", v.q), u = valore("u", v.u), c = valore("c", v.c),
-    t = valore("t", v.t), d = valore("d", v.d), k = valore("k", v.k), tipo = valore("tipo", v.tipo) || "cum";
+    t = valore("t", v.t), d = valore("d", v.d), k = valore("k", v.k), tipo = "cum";
   const out = { p: P.p, dpi: P.dpi, capoII: P.capoII, eInal: null, eCute: null, rInal: null, rCute: null, r: null, classe: null, completa: false };
   if ([cf, q, u, c, t, d].every(x => x != null)) out.eInal = arrot((cf + q + u + c + t) * d * 0.5);
   if (u != null && k != null) out.eCute = arrot((u + k) * 1.5);

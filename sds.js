@@ -35,8 +35,9 @@ function sezione(testo, n) {
   return b < 0 ? resto.slice(0, 6000) : resto.slice(0, b);
 }
 
-const STATI = [["aerosol", "aerosol"], ["gas", "gas"], ["polver", "polvere"], ["granul", "solido"], ["solid", "solido"],
-  ["pasta", "solido"], ["liquid", "liquido"], ["gel", "liquido"]];
+// Valori come nella colonna StatoFisico di PD_Sostanze (es. "Solido")
+const STATI = [["aerosol", "Aerosol"], ["gas", "Gas"], ["polver", "Polvere"], ["granul", "Granulare"], ["solid", "Solido"],
+  ["pasta", "Solido"], ["liquid", "Liquido"], ["gel", "Liquido"]];
 
 export function interpreta(testo) {
   const s2 = sezione(testo, 2) || testo;
@@ -47,7 +48,7 @@ export function interpreta(testo) {
   let statoFisico = "";
   const riga = (s9.match(/(stato fisico|aspetto|forma)[^\n]{0,80}/) || [""])[0];
   for (const [k, v] of STATI) if (riga.includes(k)) { statoFisico = v; break; }
-  if (!statoFisico && /aerosol|bomboletta spray/i.test(testo.slice(0, 4000))) statoFisico = "aerosol";
+  if (!statoFisico && /aerosol|bomboletta spray/i.test(testo.slice(0, 4000))) statoFisico = "Aerosol";
   const revisione = (testo.match(/(data di revisione|data revisione|revisione del|revisione|data di compilazione|versione)[^\d\n]{0,40}(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})/i) || [])[2] || "";
   const ETICHETTE = /^(?:\d[\d.]*\s*)?(identificatore del prodotto|nome commerciale|denominazione commerciale|nome del prodotto|nome prodotto|denominazione)\s*[:\-]?\s*/i;
   let nome = "";
