@@ -55,7 +55,8 @@ export function aziendaEsempio(azienda) {
       L("L1", "Anna Bianchi", ["Impiegata_amm"], { reparto: "Ufficio", addettoAI: true, addettoPS: true }),
       L("L2", "Luca Verdi", ["Meccanico", "Addetto_magazzino"], { addettoAI: true, preposto: true }),
       L("L3", "Marta Neri", ["Meccanico"]),
-      L("L4", "Sara Blu", ["Impiegata_amm"], { reparto: "Ufficio", dataIngresso: d(0, -3) })
+      L("L4", "Sara Blu", ["Impiegata_amm"], { reparto: "Ufficio", dataIngresso: d(0, -3) }),
+      L("L5", "Mario Rossi", ["Datore di lavoro"], { reparto: "Direzione", dataIngresso: d(-15) })
     ],
     formazione: [
       F("Anna Bianchi", "Formazione Rischio BASSO - 8 ore", d(-7), ""),
@@ -69,7 +70,9 @@ export function aziendaEsempio(azienda) {
       F("Luca Verdi", "Preposti - 12 ore", d(-1, -6), d(1, 6)),
       F("Marta Neri", "Formazione Rischio ALTO - 16 ore", d(-2), d(3)),
       F("Marta Neri", "Lavori in quota e DPI di III categoria", d(-3), d(2)),
-      F("Sara Blu", "Formazione Rischio BASSO - 8 ore", "", "", "DA FARE")
+      F("Sara Blu", "Formazione Rischio BASSO - 8 ore", "", "", "DA FARE"),
+      F("Mario Rossi", "Datore di lavoro RSPP - rischio basso 16 ore", d(-5, 2), d(0, 2)),
+      F("Mario Rossi", "ANTINCENDIO Livello 1 - 4 ore", d(-4), d(1))
     ],
     attrezzature: [
       { id: "A1", nome: "Ponte sollevatore", marca: "Rotary SPOA3", mansioni: ["Meccanico"], stato: "ATTIVA" },
