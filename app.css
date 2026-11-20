@@ -1,6 +1,6 @@
 /* PILOTA DVR – stile (dalla bozza approvata) */
 :root {
-  --blu: #12357F; --blu-scuro: #0B2459; --fondo: #F3F5F9; --testo: #1B2433; --grigio: #5B6577;
+  --blu: #03379C; --blu-scuro: #022B7A; --grigio-marchio: #A89D99; --fondo: #F4F3F2; --testo: #1B2433; --grigio: #5B6577;
   --bordo: #DCE1EA; --bordo-campo: #C9D1DE; --arancio: #F2A33A;
 }
 * { box-sizing: border-box; }
@@ -57,10 +57,11 @@ input[type=file] { font-family: inherit; font-size: 15px; }
 .barra { background: var(--blu); color: #fff; padding: 10px 24px; display: flex; align-items: center; gap: 14px; min-height: 64px; flex-wrap: wrap; }
 .barra .titolo { font-weight: 900; font-size: 17px; flex-grow: 1; }
 .barra .titolo-az { font-size: 20px; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.barra .info { font-size: 13px; color: #C9D4EE; }
-.barra .btn2 { min-height: 40px; background: transparent; color: #fff; border-color: #6F86BE; }
+.barra .info { font-size: 13px; color: #D3DCF0; }
+.barra .btn2 { min-height: 40px; background: transparent; color: #fff; border-color: rgba(255,255,255,.45); }
 .barra .btn2:hover { background: rgba(255,255,255,.1); }
-.barra .btn.invia { background: var(--arancio); color: var(--testo); }
+.barra .btn.invia { background: #fff; color: var(--blu); }
+.barra .btn.invia:hover { background: #E9EDF7; }
 .offline { background: var(--arancio); color: var(--testo); border-radius: 13px; padding: 3px 10px; font-size: 13px; font-weight: 700; }
 
 main { padding: 22px 24px 48px; max-width: 1180px; margin: 0 auto; }
@@ -127,7 +128,7 @@ main { padding: 22px 24px 48px; max-width: 1180px; margin: 0 auto; }
 
 /* schede dell'azienda */
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 0 24px; background: var(--blu); }
-.tab { font-family: inherit; font-size: 15px; font-weight: 700; border: 0; min-height: 46px; padding: 0 16px; border-radius: 9px 9px 0 0; cursor: pointer; background: transparent; color: #C9D4EE; }
+.tab { font-family: inherit; font-size: 15px; font-weight: 700; border: 0; min-height: 46px; padding: 0 16px; border-radius: 9px 9px 0 0; cursor: pointer; background: transparent; color: #D3DCF0; }
 .tab.on { background: var(--fondo); color: var(--blu); }
 .invio { max-width: 640px; margin: 0 auto; gap: 12px; }
 .ok-box { background: #E3F3D6; color: #2D4D14; border-radius: 10px; padding: 14px; font-size: 15px; font-weight: 700; }
@@ -155,3 +156,29 @@ main { padding: 22px 24px 48px; max-width: 1180px; margin: 0 auto; }
 .risultato.classe4 { background: #F8C9C9; } .risultato.classe5 { background: #F5E0E5; border: 2px solid #7B1A2C; }
 @media (max-width: 1000px) { .box.mov .modulo { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .box.mov .modulo { grid-template-columns: 1fr; } }
+
+/* note, ricevuta, firma */
+.note-grandi { min-height: 60vh; font-size: 17px; line-height: 1.5; }
+.firma { width: 100%; max-width: 900px; aspect-ratio: 900 / 260; background: #fff; border: 2px dashed var(--bordo-campo); border-radius: 12px; touch-action: none; }
+.lettera { background: #fff; border: 1px solid var(--bordo); border-radius: 8px; padding: 32px 40px; max-width: 760px; font-family: Lato, "Segoe UI", sans-serif; font-size: 15px; line-height: 1.5; color: #000; }
+.lettera .logo-lettera { width: 220px; }
+.lettera .destinatario { margin: 16px 0 16px 50%; }
+.lettera .voci { line-height: 1.9; }
+.lettera .firma-lettera { width: 260px; border-bottom: 1px solid #000; }
+.evidenza-sds { background: #EEF2F8; border-radius: 10px; padding: 10px 12px; }
+input[type=email] { font-family: inherit; font-size: 16px; min-height: 44px; border: 1px solid var(--bordo-campo); border-radius: 10px; padding: 8px 12px; width: 100%; }
+@media print {
+  body.stampa-lettera * { visibility: hidden; }
+  body.stampa-lettera #lettera, body.stampa-lettera #lettera * { visibility: visible; }
+  body.stampa-lettera #lettera { position: absolute; left: 0; top: 0; border: 0; max-width: none; }
+}
+
+/* identità in-Sicurezza: blu #03379C, grigio #A89D99, bianco */
+.barra { border-bottom: 4px solid var(--grigio-marchio); }
+.tabs { border-bottom: 4px solid var(--grigio-marchio); }
+.azienda-barra { border-bottom: 0; }
+.marchio { width: 40px; height: 40px; border-radius: 9px; background: #fff; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.marchio img { width: 32px; height: 32px; }
+.accesso .logo-accesso { width: 240px; max-width: 100%; }
+.card:hover { border-color: var(--grigio-marchio); }
+.lbl { color: #6E6460; }

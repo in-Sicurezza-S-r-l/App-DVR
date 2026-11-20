@@ -12,7 +12,8 @@ export function bozzaVuota(codice, tecnico) {
     codice, tecnico, idSopralluogo: nuovoIdSopralluogo(), iniziata: new Date().toISOString(),
     lavNuovi: [], cessati: {}, mansioni: {}, ruoli: {},
     corsiNuovi: [], attNuove: [], attDismesse: {}, sosNuove: [], sosEliminate: {},
-    preNuove: [], preRisolte: {}, preFoto: {}, impianto: {}, valChimica: {}, media: [], note: ""
+    preNuove: [], preRisolte: {}, preFoto: {}, impianto: {}, valChimica: {}, sosAggiornate: {}, impiantoDoc: { dico: [], terra: [] },
+    ricevuta: { voci: {}, fonometriche: "", accelerometriche: "", altro: "", ore: "", minuti: "", email: "", firma: "" }, media: [], note: ""
   };
 }
 
@@ -27,7 +28,8 @@ export function contaModifiche(b) {
   return b.lavNuovi.length + n(b.cessati) + Object.keys(b.mansioni).length + Object.keys(b.ruoli).length +
     b.corsiNuovi.length + b.attNuove.length + n(b.attDismesse) + b.sosNuove.length + n(b.sosEliminate) +
     b.preNuove.length + n(b.preRisolte) + Object.values(b.preFoto).reduce((t, l) => t + l.length, 0) +
-    (Object.keys(b.impianto).length ? 1 : 0) + Object.keys(b.valChimica || {}).length + b.media.length + (b.note.trim() ? 1 : 0);
+    (Object.keys(b.impianto).length ? 1 : 0) + Object.keys(b.valChimica || {}).length +
+    Object.keys(b.sosAggiornate || {}).length + ((b.impiantoDoc && (b.impiantoDoc.dico.length + b.impiantoDoc.terra.length)) || 0) + b.media.length + (b.note.trim() ? 1 : 0);
 }
 
 export function riepilogo(b) {
@@ -42,6 +44,8 @@ export function riepilogo(b) {
     ["Prescrizioni nuove", b.preNuove.length], ["Prescrizioni risolte", n(b.preRisolte)],
     ["Foto aggiunte a prescrizioni", Object.values(b.preFoto).reduce((t, l) => t + l.length, 0)],
     ["Valutazioni MoVaRisCh", Object.keys(b.valChimica || {}).length],
+    ["Sostanze aggiornate dalla SDS (frasi H, stato fisico)", Object.keys(b.sosAggiornate || {}).length],
+    ["Documenti impianto elettrico caricati", (b.impiantoDoc && (b.impiantoDoc.dico.length + b.impiantoDoc.terra.length)) || 0],
     ["Impianto elettrico aggiornato", Object.keys(b.impianto).length ? "sì" : 0],
     ["Foto e video del sopralluogo", b.media.length], ["Note", b.note.trim() ? "sì" : 0]
   ].filter(r => r[1]);

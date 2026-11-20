@@ -4,6 +4,7 @@ import { scaricaAziende, aziendeSalvate, codiciConBozza, calcolaStato, nomeTecni
   scaricaAzienda, aziendaSalvata, scaricaFoto } from "./dati.js";
 import { UTENTE_ESEMPIO, PACCHETTO_ESEMPIO, BOZZE_ESEMPIO, aziendaEsempio } from "./esempio.js";
 import { SCALE, calcola, pericolo } from "./movarisch.js";
+import { leggiSDS } from "./sds.js";
 import { bozzaVuota, leggiBozza, salvaBozza, eliminaBozza, contaModifiche, riepilogo, salvaFoto, leggiFoto, idBreve } from "./bozza.js";
 
 const $app = document.getElementById("app");
@@ -101,6 +102,7 @@ async function caricaBozza(codice) {
 // Ogni modifica avvia (se serve) il sopralluogo e salva subito la bozza sul tablet
 async function modifica(fn) {
   if (!S.bozza) S.bozza = bozzaVuota(S.azienda.codice, S.utente.name);
+  completaBozza(S.bozza);
   fn(S.bozza);
   if (S.esempio) S.bozzeEsempio[S.azienda.codice] = S.bozza;
   else await salvaBozza(S.bozza);
@@ -110,6 +112,14 @@ async function modifica(fn) {
 }
 
 // ---------- Scheda azienda: viste che uniscono dati di SharePoint e modifiche della bozza ----------
+// Bozze create con una versione precedente dell'app: aggiunge i campi nuovi
+function completaBozza(b) {
+  if (!b) return b;
+  const v = bozzaVuota(b.codice, b.tecnico);
+  for (const k of Object.keys(v)) if (b[k] === undefined) b[k] = v[k];
+  return b;
+}
+
 function lavoratori() {
   const D = S.dettaglio, B = S.bozza || bozzaVuota("", "");
   const base = D.lavoratori.map(l => ({ ...l }));
@@ -182,7 +192,8 @@ function attrezzature() {
 }
 function sostanze() {
   const B = S.bozza || bozzaVuota("", "");
-  return S.dettaglio.sostanze.map(s => ({ ...s, eliminata: !!B.sosEliminate[s.id] }))
+  const agg = B.sosAggiornate || {};
+  return S.dettaglio.sostanze.map(s => ({ ...s, ...(agg[s.id] || {}), aggiornata: !!agg[s.id], eliminata: !!B.sosEliminate[s.id] }))
     .concat(B.sosNuove.map(s => ({ ...s, nuova: true })));
 }
 function prescrizioni() {
@@ -209,8 +220,10 @@ function esitoSostanza(sost) {
 
 function impianto() { return { ...S.dettaglio.impianto, ...((S.bozza && S.bozza.impianto) || {}) }; }
 
+function dataSopralluogo() { const d = S.bozza ? new Date(S.bozza.iniziata) : oggi(); d.setHours(0, 0, 0, 0); return d; }
+
 function scadenzeEntroAnno() {
-  const out = [], oggiD = oggi(), limite = piuGiorni(oggiD, 365);
+  const out = [], oggiD = dataSopralluogo(), limite = piuGiorni(oggiD, 365);
   for (const l of lavoratori()) {
     if (l.cessato) continue;
     for (const g of gruppiCorsi(l.nome)) for (const c of g.corsi) {
@@ -230,7 +243,7 @@ async function apriAzienda(codice) {
   S.azienda = S.aziende.find(a => a.codice === codice);
   if (cambia) { S.tab = "anagrafica"; S.lavSel = null; S.pannello = null; S.dettaglio = null; S.inviato = false; }
   S.schermata = "azienda";
-  S.bozza = await caricaBozza(codice);
+  S.bozza = completaBozza(await caricaBozza(codice));
   window.scrollTo(0, 0);
   if (S.esempio) { S.dettaglio = aziendaEsempio(S.azienda); return disegna(); }
   if (!S.dettaglio) S.dettaglio = await aziendaSalvata(codice).catch(() => null);
@@ -256,8 +269,8 @@ function disegnaAccesso(errore) {
   const consenso = errore && /AADSTS65001|AADSTS90094|consent|approv|admin/i.test(errore);
   $app.innerHTML = `
     <main><div class="accesso">
-      <div class="lbl">in-Sicurezza · PILOTA DVR</div>
-      <h1>Sopralluoghi</h1>
+      <img src="icone/logo-insicurezza.jpg" alt="in-Sicurezza S.r.l." class="logo-accesso">
+      <h1>PILOTA DVR · Sopralluoghi</h1>
       <p>Accedi con l'account Microsoft 365 dello studio. Vedrai le aziende e i documenti che vedi già in SharePoint.</p>
       ${consenso ? `<div class="avviso">L'accesso ai dati veri è in attesa dell'approvazione dell'amministratore Microsoft dello studio. Intanto puoi provare l'app con i dati di esempio.</div>`
         : errore ? `<div class="errore">${esc(errore)}</div>` : ""}
@@ -272,6 +285,7 @@ function barraPrincipale() {
     ? "aggiornato " + new Date(S.pacchetto.scaricatoIl).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
   return `
     <div class="barra">
+      <span class="marchio"><img src="icone/marchio.png" alt=""></span>
       <span class="titolo">in-Sicurezza · PILOTA DVR</span>
       ${S.esempio ? `<span class="offline">DATI DI ESEMPIO</span>` : ""}
       ${navigator.onLine === false ? `<span class="offline">Senza rete</span>` : ""}
@@ -339,7 +353,7 @@ function disegnaElenco() {
 }
 
 const TABS = [["anagrafica", "Anagrafica"], ["lavoratori", "Lavoratori"], ["attrezzature", "Attrezzature"],
-  ["sostanze", "Sostanze"], ["prescrizioni", "Prescrizioni"], ["altro", "Altro"]];
+  ["sostanze", "Sostanze"], ["prescrizioni", "Prescrizioni"], ["altro", "Altro"], ["note", "Note"]];
 
 function disegnaAzienda() {
   const a = S.azienda, n = contaModifiche(S.bozza);
@@ -350,9 +364,10 @@ function disegnaAzienda() {
   else if (S.tab === "lavoratori" && S.lavSel) corpo = vistaLavoratore();
   else if (S.tab === "sostanze" && S.valSos) corpo = vistaMovarisch();
   else corpo = ({ anagrafica: vistaAnagrafica, lavoratori: vistaLavoratori, attrezzature: vistaAttrezzature,
-    sostanze: vistaSostanze, prescrizioni: vistaPrescrizioni, altro: vistaAltro })[S.tab]();
+    sostanze: vistaSostanze, prescrizioni: vistaPrescrizioni, altro: vistaAltro, note: vistaNote })[S.tab]();
   $app.innerHTML = `
-    <div class="barra">
+    <div class="barra azienda-barra">
+      <span class="marchio"><img src="icone/marchio.png" alt=""></span>
       <button class="btn2" data-a="indietro-aziende">‹ Aziende</button>
       <div class="cresce" style="min-width:0">
         <div class="titolo-az">${esc(a.nome)}</div>
@@ -367,6 +382,7 @@ function disegnaAzienda() {
       ${corpo}
     </main>`;
   caricaMiniature();
+  if (S.tab === "invia") attivaFirma();
 }
 
 // ---- Anagrafica ----
@@ -526,7 +542,8 @@ function vistaSostanze() {
       <label class="colonna"><span class="lbl">Stato fisico</span><select id="f-stato"><option>liquido</option><option>solido</option><option>polvere</option><option>aerosol</option><option>gas</option></select></label>
       <label class="colonna"><span class="lbl">Frasi H (separate da spazio)</span><input type="text" id="f-h" placeholder="H225 H304" autocomplete="off"></label>
       <div class="colonna intero"><span class="lbl">Chi la usa</span>${sceltaMultipla("f-mans", M, [])}</div>
-      <label class="colonna intero"><span class="lbl">Scheda di sicurezza (SDS), se disponibile</span><input type="file" id="f-sds" accept="application/pdf,image/*"></label>
+      <label class="colonna intero evidenza-sds"><span class="lbl">1. Carica la scheda di sicurezza (PDF): l'app legge nome, produttore, frasi H e stato fisico</span><input type="file" id="f-sds" accept="application/pdf"></label>
+      <div class="intero" id="f-sds-esito"></div>
       <div class="intero"><button class="btn" data-a="salva-sos">Aggiungi sostanza</button></div>
     </div>` : ""}
     <div class="colonna">
@@ -535,11 +552,12 @@ function vistaSostanze() {
         <div class="cresce colonna">
           <span class="nome-riga">${esc(s.nome)} <span class="sotto">· ${esc(s.statoFisico || "")}${s.produttore ? " · " + esc(s.produttore) : ""}</span></span>
           <span class="chips">${s.frasiH.map(h => `<span class="chip acca">${esc(h)}</span>`).join("")}${s.nuova ? `<span class="chip nuovo">NUOVA</span>` : ""}</span>
-          <span class="sotto">${s.sds ? "SDS presente" + (s.revisione ? " · revisione " + esc(s.revisione) : "") : "SDS mancante: da chiedere al fornitore"}</span>
+          <span class="sotto">${s.sds ? "SDS presente" + (s.revisione ? " · revisione " + esc(s.revisione) : "") : "SDS mancante: da chiedere al fornitore"}${s.aggiornata ? " · <b>dati aggiornati dalla nuova SDS</b>" : ""}</span>
         </div>
         <div class="colonna destra">
           ${(e => e ? `<span class="chip classe${e.n}">MoVaRisCh: ${esc(e.testo)}</span>` : `<span class="chip bozza">MoVaRisCh: da valutare</span>`)(esitoSostanza(s))}
           ${s.eliminata ? "" : `<button class="btn2 piccolo" data-a="apri-mov" data-v="${esc(s.id)}">Valutazione MoVaRisCh</button>`}
+          ${s.eliminata || s.nuova ? "" : `<label class="btn2 piccolo file">${s.sds ? "Aggiorna SDS" : "Carica SDS"}<input type="file" accept="application/pdf" data-sds-sos="${esc(s.id)}" hidden></label>`}
           ${s.nuova ? `<button class="btn2 piccolo" data-a="togli-sos" data-v="${esc(s.id)}">Togli</button>`
             : `<label class="chk"><input type="checkbox" data-a="sos-elimina" data-v="${esc(s.id)}" ${s.eliminata ? "checked" : ""}>Non più usata</label>`}
         </div>
@@ -651,6 +669,7 @@ function vistaAltro() {
     <div class="griglia">
       <div class="box colonna">
         <h3>Corsi in scadenza entro un anno</h3>
+        <span class="sotto">Dalla data del sopralluogo (${esc(fmt(dataSopralluogo()))}) al ${esc(fmt(piuGiorni(dataSopralluogo(), 365)))}</span>
         ${sc.map(x => `<div class="riga-sottile"><span class="cresce"><b>${esc(x.lav)}</b> – ${esc(x.corso)}</span><span class="scad ${x.classe}">${esc(x.quando)}</span></div>`).join("")
           || `<span class="sotto">Nessun corso in scadenza.</span>`}
       </div>
@@ -667,6 +686,11 @@ function vistaAltro() {
           <label class="colonna intero"><span class="lbl">Organismo di verifica</span><input type="text" data-imp="terraOrganismo" value="${v("terraOrganismo")}"></label>
         </div>
         <span class="chip ${statoTerra[0]}">${statoTerra[1]}</span>
+        ${[["dico", "Dichiarazione di conformità"], ["terra", "Verbale verifica messa a terra"]].map(([k, t]) => {
+          const docs = ((S.bozza && S.bozza.impiantoDoc) || { dico: [], terra: [] })[k];
+          return `<div class="riga-sottile"><span class="cresce">${t}${docs.length ? ` · <b>${docs.length} caricat${docs.length > 1 ? "i" : "o"}</b>` : ""}</span>
+            <label class="btn2 piccolo file">Carica (PDF o foto)<input type="file" accept="application/pdf,image/*" capture="environment" data-imp-doc="${k}" hidden multiple></label></div>`;
+        }).join("")}
       </div>
       <div class="box colonna">
         <h3>Schede di sicurezza (SDS)</h3>
@@ -674,13 +698,83 @@ function vistaAltro() {
         <button class="btn2" data-a="tab" data-v="sostanze">Apri sostanze</button>
       </div>
       <div class="box colonna">
-        <h3>Foto, video e note del sopralluogo</h3>
+        <h3>Foto e video del sopralluogo</h3>
         <span class="sotto">Salvati nella cartella del cliente, sottocartella "Media gg-mm-aaaa".</span>
         ${media.length ? miniature([], media) : ""}
         <label class="btn2 file">Scatta foto o video<input type="file" accept="image/*,video/*" capture="environment" data-foto-media="1" hidden multiple></label>
-        <label class="colonna"><span class="lbl">Note</span><textarea id="f-note" rows="3">${esc((S.bozza && S.bozza.note) || "")}</textarea></label>
+        <button class="btn2" data-a="tab" data-v="note">Scrivi le note del sopralluogo</button>
       </div>
     </div>`;
+}
+
+// ---- Note ----
+function vistaNote() {
+  return `
+    <div class="riga-titolo"><h2>Note del sopralluogo</h2><span class="sotto">Si salvano da sole quando tocchi fuori dal riquadro</span></div>
+    <textarea id="f-note" class="note-grandi" placeholder="Scrivi qui tutto quello che serve: osservazioni, cose da fare, richieste del cliente…">${esc((S.bozza && S.bozza.note) || "")}</textarea>`;
+}
+
+// ---- Ricevuta di sopralluogo (stesse voci del modello Word dello studio) ----
+const VOCI_RICEVUTA = [["analisi", "analisi aziendale e del processo produttivo"], ["documentazione", "analisi documentazione tecnica"],
+  ["dvr", "ritiro DVR esistente per aggiornamento"], ["attestati", "ritiro attestati corsi svolti"]];
+function ricevuta() { return (S.bozza && S.bozza.ricevuta) || bozzaVuota("", "").ricevuta; }
+function vistaRicevuta() {
+  const R = ricevuta(), A = S.dettaglio.anagrafica;
+  return `
+    <div class="box colonna" style="margin-top:16px">
+      <h3>Ricevuta di sopralluogo per il cliente</h3>
+      <span class="sotto">Spunta le attività svolte e fai firmare il cliente sul tablet.</span>
+      ${VOCI_RICEVUTA.map(([k, t]) => `<label class="chk"><input type="checkbox" data-ric-voce="${k}" ${R.voci[k] ? "checked" : ""}>${t}</label>`).join("")}
+      <div class="modulo stretto">
+        <label class="colonna"><span class="lbl">N° misurazioni fonometriche</span><input type="text" inputmode="numeric" data-ric="fonometriche" value="${esc(R.fonometriche)}"></label>
+        <label class="colonna"><span class="lbl">N° misurazioni accelerometriche</span><input type="text" inputmode="numeric" data-ric="accelerometriche" value="${esc(R.accelerometriche)}"></label>
+        <label class="colonna intero"><span class="lbl">Altro</span><input type="text" data-ric="altro" value="${esc(R.altro)}"></label>
+        <label class="colonna"><span class="lbl">Tempo totale: ore</span><input type="text" inputmode="numeric" data-ric="ore" value="${esc(R.ore)}"></label>
+        <label class="colonna"><span class="lbl">minuti</span><input type="text" inputmode="numeric" data-ric="minuti" value="${esc(R.minuti)}"></label>
+        <label class="colonna intero"><span class="lbl">Email del cliente per l'invio</span><input type="email" data-ric="email" value="${esc(R.email || A.email || "")}"></label>
+      </div>
+      <span class="lbl">Firma del cliente per ricevuta</span>
+      <canvas id="firma" class="firma" width="900" height="260"></canvas>
+      <div class="chips">
+        <button class="btn2 piccolo" data-a="cancella-firma">Cancella firma</button>
+        <button class="btn2 piccolo" data-a="anteprima-ricevuta">${S.anteprima ? "Chiudi anteprima" : "Anteprima ricevuta"}</button>
+      </div>
+      ${S.anteprima ? letteraRicevuta() : ""}
+    </div>`;
+}
+function letteraRicevuta() {
+  const R = ricevuta(), A = S.dettaglio.anagrafica, q = b => (b ? "☒" : "☐");
+  const giorno = new Date().toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" });
+  return `
+    <div class="lettera" id="lettera">
+      <img src="icone/logo-insicurezza.jpg" alt="in-Sicurezza S.r.l." class="logo-lettera">
+      <div class="destinatario">Spett.le<br><b>${esc(S.azienda.nome)}</b><br>${esc(A.sedeLegale || "")}</div>
+      <p>${esc(giorno)}</p>
+      <p><b>OGGETTO: Ricevuta di sopralluogo</b></p>
+      <p>In data odierna, è stato svolto il sopralluogo tecnico presso la vostra sede, durante il quale si è provveduto ad effettuare:</p>
+      <p class="voci">${VOCI_RICEVUTA.map(([k, t]) => `${q(R.voci[k])} ${t}`).join("<br>")}<br>
+        ${q(R.fonometriche)} n° ${esc(R.fonometriche || "___")} misurazioni fonometriche<br>
+        ${q(R.accelerometriche)} n° ${esc(R.accelerometriche || "___")} misurazioni accelerometriche<br>
+        ${q(R.altro)} altro: ${esc(R.altro || "______________________")}<br>
+        ${q(R.ore || R.minuti)} tempo totale: ${esc(R.ore || "__")} ore ${esc(R.minuti || "__")} minuti</p>
+      <p>Firma per ricevuta</p>
+      ${R.firma ? `<img src="${R.firma}" alt="Firma del cliente" class="firma-lettera">` : "<p>__________________________</p>"}
+      <p class="sotto">Tecnico: ${esc((S.bozza && S.bozza.tecnico) || S.utente.name)}</p>
+    </div>
+    <button class="btn2 piccolo" data-a="stampa-ricevuta">Stampa o salva in PDF</button>`;
+}
+
+// Firma con il dito sul tablet
+function attivaFirma() {
+  const c = $("firma"); if (!c) return;
+  const ctx = c.getContext("2d"), R = ricevuta();
+  ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.strokeStyle = "#1B2433";
+  if (R.firma) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = R.firma; }
+  let giu = false, segnato = false;
+  const pos = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; };
+  c.onpointerdown = e => { giu = true; c.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.moveTo(...pos(e)); e.preventDefault(); };
+  c.onpointermove = e => { if (!giu) return; ctx.lineTo(...pos(e)); ctx.stroke(); segnato = true; e.preventDefault(); };
+  c.onpointerup = () => { if (!giu) return; giu = false; if (segnato) modifica(b => { b.ricevuta.firma = c.toDataURL("image/png"); }); };
 }
 
 // ---- Invia ----
@@ -697,6 +791,8 @@ function vistaInvia() {
       <h2>Invia sopralluogo</h2>
       <span class="sotto">${esc(S.bozza ? S.bozza.idSopralluogo + " · tecnico " + S.bozza.tecnico : "")}</span>
       ${r.length ? r.map(([k, v]) => `<div class="riga-sottile"><span class="cresce">${esc(k)}</span><b>${esc(v)}</b></div>`).join("") : `<span class="sotto">Nessuna modifica.</span>`}
+      ${vistaRicevuta()}
+      <div class="avviso">All'invio l'app salverà nella cartella del cliente il riepilogo del sopralluogo e la ricevuta firmata, e li manderà per email al cliente.${S.esempio ? " (Nell'esempio non viene inviato nulla.)" : ""}</div>
       ${S.esempio ? "" : `<div class="avviso">L'invio ai dati veri si attiva dopo la prova sull'azienda BAR-BON con il motore. Intanto la bozza resta salvata sul tablet.</div>`}
       <div class="chips">
         <button class="btn" data-a="invia-conferma" ${S.esempio && r.length ? "" : "disabled"}>Conferma e invia</button>
@@ -704,6 +800,20 @@ function vistaInvia() {
         <button class="btn2" data-a="annulla-bozza">Annulla il sopralluogo</button>
       </div>
     </div>`;
+}
+
+// Nuova sostanza: compila il modulo leggendo la SDS
+async function compilaDaSDS(file) {
+  const out = $("f-sds-esito");
+  out.innerHTML = `<span class="sotto">Leggo la scheda di sicurezza…</span>`;
+  const r = await leggiSDS(file);
+  if (!r.letto) { out.innerHTML = `<div class="avviso">Non riesco a leggere il testo di questa SDS (forse è una scansione). Compila tu i campi: la SDS viene comunque salvata.</div>`; return; }
+  if (r.nome && !$("f-nome").value) $("f-nome").value = r.nome;
+  if (r.produttore && !$("f-prod").value) $("f-prod").value = r.produttore;
+  if (r.statoFisico) $("f-stato").value = r.statoFisico;
+  if (r.frasiH.length) $("f-h").value = r.frasiH.join(" ");
+  S.sdsLetta = r;
+  out.innerHTML = `<div class="ok-box">Letti dalla SDS: ${r.frasiH.length ? r.frasiH.map(esc).join(" ") : "nessuna frase H"}${r.statoFisico ? " · " + esc(r.statoFisico) : ""}${r.revisione ? " · revisione " + esc(r.revisione) : ""}. Controlla i campi qui sopra.</div>`;
 }
 
 // ---------- Miniature delle foto ----------
@@ -800,7 +910,8 @@ const azioni = {
     const sdsId = file ? await salvaFoto(file) : null;
     const s = { id: "N" + idBreve(), nome, produttore: $("f-prod").value.trim(), statoFisico: $("f-stato").value,
       frasiH: $("f-h").value.toUpperCase().split(/[\s,;]+/).filter(Boolean), mansioni: valoriScelti("f-mans"),
-      sds: !!file, sdsFile: sdsId, revisione: "", esito: "" };
+      sds: !!file, sdsFile: sdsId, revisione: (file && S.sdsLetta && S.sdsLetta.revisione) || "", esito: "" };
+    S.sdsLetta = null;
     S.pannello = null;
     modifica(b => b.sosNuove.push(s));
   },
@@ -828,6 +939,9 @@ const azioni = {
     modifica(b => { b.valChimica = b.valChimica || {};
       b.valChimica[sost.id + "|" + m] = { sostanza: sost.nome, mansione: m, ...v, data: iso(oggi()), tecnico: S.utente.name }; });
   },
+  "cancella-firma": () => modifica(b => { b.ricevuta.firma = ""; }),
+  "anteprima-ricevuta": () => { S.anteprima = !S.anteprima; disegna(); },
+  "stampa-ricevuta": () => { document.body.classList.add("stampa-lettera"); window.print(); setTimeout(() => document.body.classList.remove("stampa-lettera"), 500); },
   "annulla-bozza": async () => {
     if (!confirm("Annullare il sopralluogo? Tutte le modifiche di questa bozza andranno perse.")) return;
     if (S.esempio) delete S.bozzeEsempio[S.azienda.codice]; else await eliminaBozza(S.azienda.codice);
@@ -857,6 +971,24 @@ document.addEventListener("change", async e => {
     const card = el.closest("[data-mans]"), sost = sostanze().find(x => x.id === S.valSos);
     card.querySelector(".esito-mov").innerHTML = risultatoHtml(calcola(sost.frasiH, valoriMov(card)));
     return;
+  }
+  if (el.dataset.ricVoce) return modifica(b => { b.ricevuta.voci[el.dataset.ricVoce] = el.checked; });
+  if (el.dataset.ric) return modifica(b => { b.ricevuta[el.dataset.ric] = el.value.trim(); });
+  if (el.dataset.impDoc) {
+    const ids = []; for (const f of el.files) ids.push(await salvaFoto(f));
+    if (ids.length) modifica(b => { b.impiantoDoc[el.dataset.impDoc] = b.impiantoDoc[el.dataset.impDoc].concat(ids); });
+    return;
+  }
+  if (el.id === "f-sds" && el.files[0]) return compilaDaSDS(el.files[0]);
+  if (el.dataset.sdsSos && el.files[0]) {
+    const f = el.files[0], id = el.dataset.sdsSos, r = await leggiSDS(f), fileId = await salvaFoto(f);
+    const sost = sostanze().find(x => x.id === id);
+    if (!r.letto) alert("Ho salvato la SDS, ma non riesco a leggerne il testo (forse è una scansione): controlla tu frasi H e stato fisico.");
+    const nuovi = { sds: true, sdsFile: fileId, revisione: r.revisione || sost.revisione };
+    if (r.frasiH.length) nuovi.frasiH = r.frasiH;
+    if (r.statoFisico) nuovi.statoFisico = r.statoFisico;
+    if (r.letto && r.frasiH.length) alert("Dalla SDS: " + r.frasiH.join(" ") + (r.statoFisico ? " · " + r.statoFisico : "") + (r.revisione ? " · revisione " + r.revisione : "") + ". Controlla che siano corrette.");
+    return modifica(b => { b.sosAggiornate[id] = nuovi; });
   }
   if (el.dataset.imp) return modifica(b => { b.impianto[el.dataset.imp] = el.value; });
   if (el.id === "f-note") return modifica(b => { b.note = el.value; });
