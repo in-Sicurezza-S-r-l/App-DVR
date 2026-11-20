@@ -591,6 +591,9 @@ function vistaMovarisch() {
     <div class="box colonna">
       <span class="chips">${sost.frasiH.map(h => `<span class="chip acca">${esc(h)}</span>`).join("") || `<span class="sotto">Nessuna frase H indicata</span>`}</span>
       <span>Pericolosità <b>P = ${P.p}</b> (punteggio più alto tra le frasi H) · ${esc(sost.statoFisico || "stato fisico non indicato")}</span>
+      <div class="riga-sottile"><label class="colonna cresce"><span class="lbl">Correggi frasi H (dalla scheda di sicurezza)</span>
+        <input type="text" id="f-frasi-mov" value="${esc(sost.frasiH.join(" "))}" placeholder="H225 H319"></label>
+        <button class="btn2 piccolo" data-a="salva-frasi-mov">Salva frasi H</button></div>
       ${P.capoII.length ? `<div class="errore">Contiene ${esc(P.capoII.join(", "))}: sostanza cancerogena, mutagena o tossica per la riproduzione (Titolo IX Capo II). Non si valuta con MoVaRisCh.</div>` : ""}
       ${P.sconosciute.length ? `<span class="sotto">Frasi non riconosciute (non contano nel calcolo): ${esc(P.sconosciute.join(", "))}</span>` : ""}
       ${P.dpi.length ? `<span class="sotto">DPI indicati dalle frasi H: ${esc(P.dpi.join(", "))}</span>` : ""}
@@ -605,6 +608,8 @@ function vistaMovarisch() {
         </div>
         <div class="modulo">${["cf", "q", "u", "c", "t", "d", "k"].map(k => sel(m, k, (trovaVoce(k, v[k]) || [])[0])).join("")}</div>
         <div class="esito-mov">${risultatoHtml(r)}</div>
+        ${mansioni.length > 1 || altre.length ? `<div class="colonna"><span class="lbl">Applica anche a (stesse scelte)</span>
+          ${sceltaMultipla("applica-" + m, S.dettaglio.mansioni.filter(x => x !== m), [])}</div>` : ""}
         <div><button class="btn" data-a="salva-mov" data-v="${esc(m)}">Salva valutazione</button></div>
       </div>`;
     }).join("") || `<div class="vuoto">Nessuna mansione usa questa sostanza: aggiungine una qui sotto.</div>`}
@@ -931,13 +936,24 @@ const azioni = {
   "risolta": v => modifica(b => { if (b.preRisolte[v]) delete b.preRisolte[v]; else b.preRisolte[v] = iso(oggi()); }),
   "apri-mov": v => { S.valSos = v; S.valMansExtra = []; window.scrollTo(0, 0); disegna(); },
   "chiudi-mov": () => { S.valSos = null; disegna(); },
+  "salva-frasi-mov": () => {
+    const frasi = $("f-frasi-mov").value.toUpperCase().split(/[\s,;]+/).filter(h => /^(EU)?H\d/.test(h));
+    const id = S.valSos;
+    modifica(b => {
+      const nuova = b.sosNuove.find(x => x.id === id);
+      if (nuova) nuova.frasiH = frasi;
+      else b.sosAggiornate[id] = { ...(b.sosAggiornate[id] || {}), frasiH: frasi };
+    });
+  },
   "aggiungi-mans-mov": () => { S.valMansExtra.push($("f-altra-mans").value); disegna(); },
   "salva-mov": (m, el) => {
     const card = el.closest("[data-mans]"), v = valoriMov(card);
     const sost = sostanze().find(x => x.id === S.valSos);
     if (!calcola(sost.frasiH, v).completa) return alert("Compila tutti i parametri prima di salvare.");
+    const anche = valoriScelti("applica-" + m);
     modifica(b => { b.valChimica = b.valChimica || {};
-      b.valChimica[sost.id + "|" + m] = { sostanza: sost.nome, mansione: m, ...v, data: iso(oggi()), tecnico: S.utente.name }; });
+      for (const mm of [m, ...anche])
+        b.valChimica[sost.id + "|" + mm] = { sostanza: sost.nome, mansione: mm, ...v, data: iso(oggi()), tecnico: S.utente.name }; });
   },
   "cancella-firma": () => modifica(b => { b.ricevuta.firma = ""; }),
   "anteprima-ricevuta": () => { S.anteprima = !S.anteprima; disegna(); },

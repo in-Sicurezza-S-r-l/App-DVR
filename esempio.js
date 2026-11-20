@@ -92,8 +92,8 @@ export function aziendaEsempio(azienda) {
       { id: "P3", zona: "Magazzino", testo: "Delimitare a terra le corsie del carrello elevatore", foto: ["esempio-3"], stato: "APERTA", dataApertura: d(-1) }
     ],
     valChimica: [
-      { sostanza: "Sgrassante spray", mansione: "Meccanico", cf: "Stato solido / nebbie", q: "< 0,1 kg",
-        u: "Uso controllato e non dispersivo", c: "Diluizione - ventilazione", t: "Inferiore a 15 minuti", d: "Da 1 a 3 metri", k: "Contatto accidentale",
+      { sostanza: "Sgrassante spray", mansione: "Meccanico", cf: "Solido/nebbie (largo spettro granulometrico)", q: "< 0,1 kg",
+        u: "Uso controllato e non dispersivo", c: "Diluizione - ventilazione", t: "Inferiore a 15 minuti", d: "Da 1 a inferiore a 3 metri", k: "Contatto accidentale",
         data: d(-1), tecnico: "Anna Esempio" },
       { sostanza: "Olio motore 10W40", mansione: "Meccanico", cf: "Liquido a bassa volatilità", q: "1 - 10 kg",
         u: "Uso controllato e non dispersivo", c: "Diluizione - ventilazione", t: "Tra 15 minuti e 2 ore", d: "Inferiore a 1 metro", k: "Contatto discontinuo",
