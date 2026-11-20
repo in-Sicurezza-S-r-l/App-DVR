@@ -182,3 +182,12 @@ input[type=email] { font-family: inherit; font-size: 16px; min-height: 44px; bor
 .accesso .logo-accesso { width: 240px; max-width: 100%; }
 .card:hover { border-color: var(--grigio-marchio); }
 .lbl { color: #6E6460; }
+
+/* elenco frasi H */
+.frasi { position: relative; display: flex; flex-direction: column; gap: 8px; }
+.togli-frase { border: 0; background: transparent; font-size: 16px; font-weight: 700; color: inherit; cursor: pointer; padding: 0 0 0 4px; min-width: 28px; min-height: 26px; }
+.frasi-elenco { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; max-height: 300px; overflow-y: auto; background: #fff; border: 1px solid var(--bordo-campo); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.frase-voce { display: block; width: 100%; text-align: left; font-family: inherit; font-size: 15px; border: 0; border-bottom: 1px solid #EEF1F5; background: #fff; padding: 10px 14px; cursor: pointer; color: var(--testo); min-height: 44px; }
+.frase-voce:hover { background: #EEF2F8; }
+.frase-voce[hidden] { display: none; }
+.riga-sottile.alto { align-items: flex-start; }

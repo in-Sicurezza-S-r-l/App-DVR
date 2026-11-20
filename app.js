@@ -3,7 +3,7 @@ import { initAuth, login, logout } from "./auth.js";
 import { scaricaAziende, aziendeSalvate, codiciConBozza, calcolaStato, nomeTecnico, MESI,
   scaricaAzienda, aziendaSalvata, scaricaFoto } from "./dati.js";
 import { UTENTE_ESEMPIO, PACCHETTO_ESEMPIO, BOZZE_ESEMPIO, aziendaEsempio } from "./esempio.js";
-import { SCALE, calcola, pericolo, trovaVoce } from "./movarisch.js";
+import { SCALE, calcola, pericolo, trovaVoce, DESCRIZIONI, CODICI_H } from "./movarisch.js";
 import { leggiSDS } from "./sds.js";
 import { bozzaVuota, leggiBozza, salvaBozza, eliminaBozza, contaModifiche, riepilogo, salvaFoto, leggiFoto, idBreve } from "./bozza.js";
 
@@ -455,6 +455,23 @@ function vistaLavoratori() {
     </div>`;
 }
 
+// Scelta delle frasi H da elenco, come in Power Apps: chip con ×, ricerca, elenco con descrizione.
+// Il valore (codici separati da spazio) resta in un campo nascosto con l'id indicato.
+function sceltaFrasi(id, scelte) {
+  return `<div class="frasi" data-frasi="${id}">
+    <input type="hidden" id="${id}" value="${esc(scelte.join(" "))}">
+    <div class="chips frasi-scelte">${scelte.map(chipFrase).join("")}</div>
+    <input type="search" class="frasi-cerca" placeholder="Trova elementi (es. H225 o infiammabile)" autocomplete="off">
+    <div class="frasi-elenco" hidden>${CODICI_H.map(c => `<button type="button" class="frase-voce" data-frase="${c}"><b>${c}</b> ${esc(DESCRIZIONI[c] || "")}</button>`).join("")}</div>
+  </div>`;
+}
+const chipFrase = c => `<span class="chip acca">${esc(c)} <button type="button" class="togli-frase" data-togli-frase="${esc(c)}" aria-label="Togli ${esc(c)}">×</button></span>`;
+function aggiornaFrasi(box, codici) {
+  box.querySelector("input[type=hidden]").value = codici.join(" ");
+  box.querySelector(".frasi-scelte").innerHTML = codici.map(chipFrase).join("");
+}
+const codiciFrasi = box => box.querySelector("input[type=hidden]").value.split(/\s+/).filter(Boolean);
+
 function sceltaMultipla(nome, opzioni, scelte) {
   return `<div class="chips">${opzioni.map(o => `<label class="scelta-chk"><input type="checkbox" name="${nome}" value="${esc(o)}" ${scelte.includes(o) ? "checked" : ""}><span>${esc(o)}</span></label>`).join("")}</div>`;
 }
@@ -540,7 +557,7 @@ function vistaSostanze() {
       <label class="colonna"><span class="lbl">Nome commerciale</span><input type="text" id="f-nome" autocomplete="off"></label>
       <label class="colonna"><span class="lbl">Produttore</span><input type="text" id="f-prod" autocomplete="off"></label>
       <label class="colonna"><span class="lbl">Stato fisico</span><select id="f-stato">${["Liquido", "Solido", "Polvere", "Granulare", "Aerosol", "Gas", "Nebbia", "Fumi"].map(o => `<option>${o}</option>`).join("")}</select></label>
-      <label class="colonna"><span class="lbl">Frasi H (separate da spazio)</span><input type="text" id="f-h" placeholder="H225 H304" autocomplete="off"></label>
+      <div class="colonna"><span class="lbl">Frasi H</span>${sceltaFrasi("f-h", [])}</div>
       <div class="colonna intero"><span class="lbl">Chi la usa</span>${sceltaMultipla("f-mans", M, [])}</div>
       <label class="colonna intero evidenza-sds"><span class="lbl">1. Carica la scheda di sicurezza (PDF): l'app legge nome, produttore, frasi H e stato fisico</span><input type="file" id="f-sds" accept="application/pdf"></label>
       <div class="intero" id="f-sds-esito"></div>
@@ -591,8 +608,8 @@ function vistaMovarisch() {
     <div class="box colonna">
       <span class="chips">${sost.frasiH.map(h => `<span class="chip acca">${esc(h)}</span>`).join("") || `<span class="sotto">Nessuna frase H indicata</span>`}</span>
       <span>Pericolosità <b>P = ${P.p}</b> (punteggio più alto tra le frasi H) · ${esc(sost.statoFisico || "stato fisico non indicato")}</span>
-      <div class="riga-sottile"><label class="colonna cresce"><span class="lbl">Correggi frasi H (dalla scheda di sicurezza)</span>
-        <input type="text" id="f-frasi-mov" value="${esc(sost.frasiH.join(" "))}" placeholder="H225 H319"></label>
+      <div class="riga-sottile alto"><div class="colonna cresce"><span class="lbl">Correggi frasi H (dalla scheda di sicurezza)</span>
+        ${sceltaFrasi("f-frasi-mov", sost.frasiH)}</div>
         <button class="btn2 piccolo" data-a="salva-frasi-mov">Salva frasi H</button></div>
       ${P.capoII.length ? `<div class="errore">Contiene ${esc(P.capoII.join(", "))}: sostanza cancerogena, mutagena o tossica per la riproduzione (Titolo IX Capo II). Non si valuta con MoVaRisCh.</div>` : ""}
       ${P.sconosciute.length ? `<span class="sotto">Frasi non riconosciute (non contano nel calcolo): ${esc(P.sconosciute.join(", "))}</span>` : ""}
@@ -816,7 +833,7 @@ async function compilaDaSDS(file) {
   if (r.nome && !$("f-nome").value) $("f-nome").value = r.nome;
   if (r.produttore && !$("f-prod").value) $("f-prod").value = r.produttore;
   if (r.statoFisico) $("f-stato").value = r.statoFisico;
-  if (r.frasiH.length) $("f-h").value = r.frasiH.join(" ");
+  if (r.frasiH.length) aggiornaFrasi(document.querySelector('[data-frasi="f-h"]'), r.frasiH);
   S.sdsLetta = r;
   out.innerHTML = `<div class="ok-box">Letti dalla SDS: ${r.frasiH.length ? r.frasiH.map(esc).join(" ") : "nessuna frase H"}${r.statoFisico ? " · " + esc(r.statoFisico) : ""}${r.revisione ? " · revisione " + esc(r.revisione) : ""}. Controlla i campi qui sopra.</div>`;
 }
@@ -974,11 +991,28 @@ const azioni = {
 };
 
 document.addEventListener("click", e => {
+  const voce = e.target.closest("[data-frase]"), togli = e.target.closest("[data-togli-frase]");
+  if (voce || togli) {
+    const box = e.target.closest("[data-frasi]"), cod = codiciFrasi(box);
+    if (voce && !cod.includes(voce.dataset.frase)) cod.push(voce.dataset.frase);
+    aggiornaFrasi(box, togli ? cod.filter(c => c !== togli.dataset.togliFrase) : cod);
+    if (voce) { const q = box.querySelector(".frasi-cerca"); q.value = ""; q.focus(); filtraFrasi(q); }
+    e.preventDefault(); return;
+  }
+  if (!e.target.closest("[data-frasi]")) document.querySelectorAll(".frasi-elenco").forEach(x => { x.hidden = true; });
   const el = e.target.closest("[data-a]");
   if (!el || el.tagName === "INPUT") return;
   const f = azioni[el.dataset.a];
   if (f) { e.preventDefault(); f(el.dataset.v, el); }
 });
+
+function filtraFrasi(q) {
+  const box = q.closest("[data-frasi]"), t = q.value.trim().toLowerCase(), elenco = box.querySelector(".frasi-elenco");
+  elenco.hidden = false;
+  for (const b of elenco.children) b.hidden = !!t && !b.textContent.toLowerCase().includes(t);
+}
+document.addEventListener("input", e => { if (e.target.classList.contains("frasi-cerca")) filtraFrasi(e.target); });
+document.addEventListener("focusin", e => { if (e.target.classList.contains("frasi-cerca")) filtraFrasi(e.target); });
 
 document.addEventListener("change", async e => {
   const el = e.target;
