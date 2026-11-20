@@ -91,6 +91,14 @@ export function aziendaEsempio(azienda) {
       { id: "P2", zona: "Generale", testo: "Far eseguire la verifica periodica dell'impianto di messa a terra", foto: [], stato: "APERTA", dataApertura: d(-1) },
       { id: "P3", zona: "Magazzino", testo: "Delimitare a terra le corsie del carrello elevatore", foto: ["esempio-3"], stato: "APERTA", dataApertura: d(-1) }
     ],
+    valChimica: [
+      { sostanza: "Sgrassante spray", mansione: "Meccanico", cf: "Solido o nebbie (largo spettro granulometrico)", q: "Meno di 0,1 kg",
+        u: "Uso controllato e non dispersivo", c: "Ventilazione generale", t: "Meno di 15 minuti", d: "Da 1 a 3 metri", k: "Contatto accidentale",
+        tipo: "Cumulativa (inalatoria e cutanea)", data: d(-1), tecnico: "Anna Esempio" },
+      { sostanza: "Olio motore 10W40", mansione: "Meccanico", cf: "Liquido a bassa volatilità", q: "Tra 1 e 10 kg",
+        u: "Uso controllato e non dispersivo", c: "Ventilazione generale", t: "Da 15 minuti a 2 ore", d: "Meno di 1 metro", k: "Contatto discontinuo",
+        tipo: "Cumulativa (inalatoria e cutanea)", data: d(-1), tecnico: "Anna Esempio" }
+    ],
     impianto: { dicoPresente: "Sì", dicoDitta: "Elettrica Esempio S.n.c.", dicoData: "2014-01-15",
       terraData: d(-2, -5), terraOrganismo: "Organismo Esempio", terraPeriodicita: "2 anni" },
     catalogoCorsi: [

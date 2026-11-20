@@ -3,6 +3,7 @@ import { initAuth, login, logout } from "./auth.js";
 import { scaricaAziende, aziendeSalvate, codiciConBozza, calcolaStato, nomeTecnico, MESI,
   scaricaAzienda, aziendaSalvata, scaricaFoto } from "./dati.js";
 import { UTENTE_ESEMPIO, PACCHETTO_ESEMPIO, BOZZE_ESEMPIO, aziendaEsempio } from "./esempio.js";
+import { SCALE, calcola, pericolo } from "./movarisch.js";
 import { bozzaVuota, leggiBozza, salvaBozza, eliminaBozza, contaModifiche, riepilogo, salvaFoto, leggiFoto, idBreve } from "./bozza.js";
 
 const $app = document.getElementById("app");
@@ -16,7 +17,7 @@ const S = {
   schermata: "aziende", azienda: null, tab: "anagrafica", lavSel: null, pannello: null,
   dettaglio: null, bozza: null, caricamentoAz: false, erroreAz: "", inviato: false,
   q: "", mostraTutte: ricorda("mostraTutte") === "1", filtro: "tutti", scroll: 0,
-  bozzeEsempio: {}, fotoUrl: {}
+  bozzeEsempio: {}, fotoUrl: {}, valSos: null, valMansExtra: []
 };
 
 function ricorda(k, v) {
@@ -40,7 +41,10 @@ const piuGiorni = (d, g) => { const x = new Date(d); x.setDate(x.getDate() + g);
 
 // ---------- Avvio ----------
 async function avvio() {
-  if (new URLSearchParams(location.search).has("esempio")) return avviaEsempio();
+  // Modalità esempio: dall'indirizzo (?esempio) oppure ricordata sul dispositivo (utile per l'app installata sull'iPad)
+  const qs = new URLSearchParams(location.search);
+  if (qs.has("esci-esempio")) ricorda("esempio", "0");
+  if (qs.has("esempio") || ricorda("esempio") === "1") { ricorda("esempio", "1"); return avviaEsempio(); }
   try {
     const acc = await initAuth();
     if (!acc) return disegnaAccesso();
@@ -186,6 +190,23 @@ function prescrizioni() {
   return S.dettaglio.prescrizioni.map(p => ({ ...p, risolta: !!B.preRisolte[p.id], fotoNuove: B.preFoto[p.id] || [] }))
     .concat(B.preNuove.map(p => ({ ...p, nuova: true, fotoNuove: p.foto, foto: [] })));
 }
+// ---- Valutazioni MoVaRisCh di una sostanza (SharePoint + bozza) ----
+function valutazioniSostanza(sost) {
+  const B = S.bozza || bozzaVuota("", "");
+  const out = {};
+  for (const v of S.dettaglio.valChimica || [])
+    if (v.sostanza.toLowerCase() === sost.nome.toLowerCase()) out[v.mansione] = { ...v, origine: "salvata" };
+  for (const [k, v] of Object.entries(B.valChimica || {}))
+    if (k.startsWith(sost.id + "|")) out[v.mansione] = { ...v, origine: "bozza" };
+  return out;
+}
+function esitoSostanza(sost) {
+  const vals = Object.values(valutazioniSostanza(sost)).map(v => calcola(sost.frasiH, v)).filter(r => r.completa);
+  if (!vals.length) return null;
+  const peggiore = vals.reduce((a, b) => (b.r > a.r ? b : a));
+  return { ...peggiore.classe, quante: vals.length };
+}
+
 function impianto() { return { ...S.dettaglio.impianto, ...((S.bozza && S.bozza.impianto) || {}) }; }
 
 function scadenzeEntroAnno() {
@@ -231,14 +252,17 @@ function disegna() {
 }
 
 function disegnaAccesso(errore) {
+  // L'approvazione dell'amministratore Microsoft non è ancora stata data: messaggio chiaro invece del codice d'errore
+  const consenso = errore && /AADSTS65001|AADSTS90094|consent|approv|admin/i.test(errore);
   $app.innerHTML = `
     <main><div class="accesso">
       <div class="lbl">in-Sicurezza · PILOTA DVR</div>
       <h1>Sopralluoghi</h1>
       <p>Accedi con l'account Microsoft 365 dello studio. Vedrai le aziende e i documenti che vedi già in SharePoint.</p>
-      ${errore ? `<div class="errore">${esc(errore)}</div>` : ""}
-      <button class="btn" id="accedi">Accedi con Microsoft</button>
-      <a href="?esempio">Guarda l'app con dati di esempio</a>
+      ${consenso ? `<div class="avviso">L'accesso ai dati veri è in attesa dell'approvazione dell'amministratore Microsoft dello studio. Intanto puoi provare l'app con i dati di esempio.</div>`
+        : errore ? `<div class="errore">${esc(errore)}</div>` : ""}
+      <a class="btn esempio" href="?esempio">Prova l'app con dati di esempio</a>
+      <button class="btn2" id="accedi">Accedi con Microsoft (dati veri)</button>
     </div></main>`;
   $("accedi").onclick = login;
 }
@@ -252,7 +276,7 @@ function barraPrincipale() {
       ${S.esempio ? `<span class="offline">DATI DI ESEMPIO</span>` : ""}
       ${navigator.onLine === false ? `<span class="offline">Senza rete</span>` : ""}
       <span class="info">${esc(quando)}</span>
-      ${S.esempio ? `<a class="btn2" href="./">Esci dall'esempio</a>`
+      ${S.esempio ? `<a class="btn2" href="./?esci-esempio">Esci dall'esempio</a>`
         : `<button class="btn2" data-a="aggiorna" ${S.caricamento ? "disabled" : ""}>${S.caricamento ? "Aggiorno…" : "Aggiorna"}</button>
            <button class="btn2" data-a="esci">Esci</button>`}
     </div>`;
@@ -324,6 +348,7 @@ function disegnaAzienda() {
   if (!S.dettaglio) corpo = `<div class="box">${S.caricamentoAz ? "Carico i dati dell'azienda da SharePoint…" : esc(S.erroreAz || "Nessun dato.")}</div>`;
   else if (S.tab === "invia") corpo = vistaInvia();
   else if (S.tab === "lavoratori" && S.lavSel) corpo = vistaLavoratore();
+  else if (S.tab === "sostanze" && S.valSos) corpo = vistaMovarisch();
   else corpo = ({ anagrafica: vistaAnagrafica, lavoratori: vistaLavoratori, attrezzature: vistaAttrezzature,
     sostanze: vistaSostanze, prescrizioni: vistaPrescrizioni, altro: vistaAltro })[S.tab]();
   $app.innerHTML = `
@@ -513,13 +538,63 @@ function vistaSostanze() {
           <span class="sotto">${s.sds ? "SDS presente" + (s.revisione ? " · revisione " + esc(s.revisione) : "") : "SDS mancante: da chiedere al fornitore"}</span>
         </div>
         <div class="colonna destra">
-          <span class="chip ${s.esito ? "fatto" : "bozza"}">MoVaRisCh: ${esc(s.esito || "da valutare")}</span>
+          ${(e => e ? `<span class="chip classe${e.n}">MoVaRisCh: ${esc(e.testo)}</span>` : `<span class="chip bozza">MoVaRisCh: da valutare</span>`)(esitoSostanza(s))}
+          ${s.eliminata ? "" : `<button class="btn2 piccolo" data-a="apri-mov" data-v="${esc(s.id)}">Valutazione MoVaRisCh</button>`}
           ${s.nuova ? `<button class="btn2 piccolo" data-a="togli-sos" data-v="${esc(s.id)}">Togli</button>`
             : `<label class="chk"><input type="checkbox" data-a="sos-elimina" data-v="${esc(s.id)}" ${s.eliminata ? "checked" : ""}>Non più usata</label>`}
         </div>
       </div>`).join("") || `<div class="vuoto">Nessuna sostanza.</div>`}
     </div>`;
 }
+
+// ---- Valutazione MoVaRisCh di una sostanza ----
+function risultatoHtml(r) {
+  if (!r.completa) return `<span class="sotto">Compila i parametri per vedere il risultato.</span>`;
+  return `<div class="risultato classe${r.classe.n}">
+    <div><span class="lbl">R inalatorio</span><b>${r.rInal ?? "—"}</b></div>
+    <div><span class="lbl">R cutaneo</span><b>${r.rCute ?? "—"}</b></div>
+    <div><span class="lbl">R cumulativo</span><b class="grande">${r.r}</b></div>
+    <div class="cresce"><span class="lbl">Esito</span><b>${r.classe.n} – ${esc(r.classe.testo)}</b><span>Priorità: ${esc(r.classe.priorita)}</span></div>
+  </div>`;
+}
+function vistaMovarisch() {
+  const sost = sostanze().find(x => x.id === S.valSos);
+  if (!sost) { S.valSos = null; return vistaSostanze(); }
+  const P = pericolo(sost.frasiH), V = valutazioniSostanza(sost);
+  const mansioni = [...new Set([...sost.mansioni, ...Object.keys(V), ...S.valMansExtra])];
+  const altre = S.dettaglio.mansioni.filter(m => !mansioni.includes(m));
+  const sel = (m, k, val) => `<label class="colonna"><span class="lbl">${SCALE[k].titolo}</span>
+    <select data-mv="${k}">${k === "tipo" ? "" : `<option value="">— scegli —</option>`}${SCALE[k].voci.map(([t]) => `<option ${val === t ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>`;
+  return `
+    <div class="riga-titolo">
+      <button class="btn2" data-a="chiudi-mov">‹ Sostanze</button>
+      <h2 class="cresce">MoVaRisCh · ${esc(sost.nome)}</h2>
+    </div>
+    <div class="box colonna">
+      <span class="chips">${sost.frasiH.map(h => `<span class="chip acca">${esc(h)}</span>`).join("") || `<span class="sotto">Nessuna frase H indicata</span>`}</span>
+      <span>Pericolosità <b>P = ${P.p}</b> (punteggio più alto tra le frasi H) · ${esc(sost.statoFisico || "stato fisico non indicato")}</span>
+      ${P.capoII.length ? `<div class="errore">Contiene ${esc(P.capoII.join(", "))}: sostanza cancerogena, mutagena o tossica per la riproduzione (Titolo IX Capo II). Non si valuta con MoVaRisCh.</div>` : ""}
+      ${P.sconosciute.length ? `<span class="sotto">Frasi non riconosciute (non contano nel calcolo): ${esc(P.sconosciute.join(", "))}</span>` : ""}
+      ${P.dpi.length ? `<span class="sotto">DPI indicati dalle frasi H: ${esc(P.dpi.join(", "))}</span>` : ""}
+    </div>
+    ${mansioni.map(m => {
+      const v = V[m] || { tipo: SCALE.tipo.voci[0][0] }, r = calcola(sost.frasiH, v);
+      return `
+      <div class="box colonna mov" data-mans="${esc(m)}">
+        <div class="riga-titolo" style="margin:0">
+          <h3>${esc(m)}</h3>
+          ${V[m] ? `<span class="chip ${V[m].origine === "bozza" ? "nuovo" : "fatto"}">${V[m].origine === "bozza" ? "valutata in questo sopralluogo" : "valutazione del " + esc(fmt(V[m].data))}</span>` : `<span class="chip bozza">da valutare</span>`}
+        </div>
+        <div class="modulo">${["cf", "q", "u", "c", "t", "d", "k", "tipo"].map(k => sel(m, k, v[k])).join("")}</div>
+        <div class="esito-mov">${risultatoHtml(r)}</div>
+        <div><button class="btn" data-a="salva-mov" data-v="${esc(m)}">Salva valutazione</button></div>
+      </div>`;
+    }).join("") || `<div class="vuoto">Nessuna mansione usa questa sostanza: aggiungine una qui sotto.</div>`}
+    ${altre.length ? `<div class="box riga-sottile"><span class="cresce">Valuta anche per un'altra mansione</span>
+      <select id="f-altra-mans" style="max-width:320px">${altre.map(m => `<option>${esc(m)}</option>`).join("")}</select>
+      <button class="btn2 piccolo" data-a="aggiungi-mans-mov">Aggiungi</button></div>` : ""}`;
+}
+const valoriMov = card => Object.fromEntries([...card.querySelectorAll("[data-mv]")].map(x => [x.dataset.mv, x.value]));
 
 // ---- Prescrizioni ----
 function miniature(nomi, nuove) {
@@ -595,7 +670,7 @@ function vistaAltro() {
       </div>
       <div class="box colonna">
         <h3>Schede di sicurezza (SDS)</h3>
-        <span class="sotto">${X.filter(s => s.sds).length} presenti · ${X.filter(s => !s.sds).length} mancanti · ${X.filter(s => !s.esito).length} da valutare con MoVaRisCh</span>
+        <span class="sotto">${X.filter(s => s.sds).length} presenti · ${X.filter(s => !s.sds).length} mancanti · ${X.filter(s => !esitoSostanza(s)).length} da valutare con MoVaRisCh</span>
         <button class="btn2" data-a="tab" data-v="sostanze">Apri sostanze</button>
       </div>
       <div class="box colonna">
@@ -664,7 +739,7 @@ const azioni = {
   "filtro": v => { S.filtro = v; disegnaElenco(); },
   "apri-azienda": v => apriAzienda(v),
   "indietro-aziende": () => { S.schermata = "aziende"; S.pannello = null; disegna(); },
-  "tab": v => { S.tab = v; S.lavSel = null; S.pannello = null; if (v !== "invia") S.inviato = false; window.scrollTo(0, 0); disegna(); },
+  "tab": v => { S.tab = v; S.lavSel = null; S.valSos = null; S.pannello = null; if (v !== "invia") S.inviato = false; window.scrollTo(0, 0); disegna(); },
   "pannello": v => { S.pannello = S.pannello === v ? null : v; disegna(); },
   "avvia-sopralluogo": () => modifica(() => {}).then(() => { S.tab = "lavoratori"; disegna(); }),
   "apri-lav": v => { S.lavSel = v; S.pannello = null; window.scrollTo(0, 0); disegna(); },
@@ -743,6 +818,16 @@ const azioni = {
   },
   "togli-pre": v => modifica(b => { b.preNuove = b.preNuove.filter(x => x.id !== v); }),
   "risolta": v => modifica(b => { if (b.preRisolte[v]) delete b.preRisolte[v]; else b.preRisolte[v] = iso(oggi()); }),
+  "apri-mov": v => { S.valSos = v; S.valMansExtra = []; window.scrollTo(0, 0); disegna(); },
+  "chiudi-mov": () => { S.valSos = null; disegna(); },
+  "aggiungi-mans-mov": () => { S.valMansExtra.push($("f-altra-mans").value); disegna(); },
+  "salva-mov": (m, el) => {
+    const card = el.closest("[data-mans]"), v = valoriMov(card);
+    const sost = sostanze().find(x => x.id === S.valSos);
+    if (!calcola(sost.frasiH, v).completa) return alert("Compila tutti i parametri prima di salvare.");
+    modifica(b => { b.valChimica = b.valChimica || {};
+      b.valChimica[sost.id + "|" + m] = { sostanza: sost.nome, mansione: m, ...v, data: iso(oggi()), tecnico: S.utente.name }; });
+  },
   "annulla-bozza": async () => {
     if (!confirm("Annullare il sopralluogo? Tutte le modifiche di questa bozza andranno perse.")) return;
     if (S.esempio) delete S.bozzeEsempio[S.azienda.codice]; else await eliminaBozza(S.azienda.codice);
@@ -768,6 +853,11 @@ document.addEventListener("click", e => {
 document.addEventListener("change", async e => {
   const el = e.target;
   if (el.matches("input[type=checkbox][data-a]")) { const f = azioni[el.dataset.a]; if (f) f(el.dataset.v, el); return; }
+  if (el.dataset.mv) {
+    const card = el.closest("[data-mans]"), sost = sostanze().find(x => x.id === S.valSos);
+    card.querySelector(".esito-mov").innerHTML = risultatoHtml(calcola(sost.frasiH, valoriMov(card)));
+    return;
+  }
   if (el.dataset.imp) return modifica(b => { b.impianto[el.dataset.imp] = el.value; });
   if (el.id === "f-note") return modifica(b => { b.note = el.value; });
   if (el.id === "f-cat" && el.value !== "") {

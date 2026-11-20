@@ -181,6 +181,11 @@ export async function scaricaAzienda(codice) {
       id: p.Title || p._idLista, idLista: p._idLista, zona: p.Zona || "", testo: p.Testo || "",
       foto: dividi(p.Foto), stato: "APERTA", dataApertura: p.DataApertura || ""
     })),
+    valChimica: vc.map(v => ({
+      idLista: v._idLista, sostanza: v.Sostanza || "", mansione: v.Mansione || "", cf: v.StatoFisico || "", q: v.Quantita || "",
+      u: v.TipologiaUso || "", c: v.TipologiaControllo || "", t: v.TempoEsposizione || "", d: v.Distanza || "", k: v.LivelloContatto || "",
+      tipo: v.TipoEsposizione || "", data: v.DataValutazione || "", tecnico: v.Tecnico || ""
+    })),
     impianto: { dicoPresente: i.DicoPresente || "", dicoDitta: i.DicoDitta || "", dicoData: i.DicoData || "",
       terraData: i.TerraData || "", terraOrganismo: i.TerraOrganismo || "", terraPeriodicita: i.TerraPeriodicita || "" },
     catalogoCorsi: catC.map(c => ({ nome: c.Title || c.Corso || "", giorni: Number(c.PeriodicitaGiorni) || 0 })).filter(c => c.nome),
