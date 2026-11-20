@@ -1,7 +1,7 @@
 // Service worker: tiene una copia dei file dell'app per aprirla anche senza rete.
 // Strategia: rete prima (così gli aggiornamenti arrivano subito), copia salvata se manca la rete.
 // I dati di SharePoint (graph.microsoft.com) NON passano di qui: li gestisce l'app.
-const CACHE = "pilota-dvr-app-v2";
+const CACHE = "pilota-dvr-app-v3";
 const FILE = [
   "./", "./index.html", "./app.css", "./config.js", "./app.js", "./auth.js", "./dati.js",
   "./store.js", "./esempio.js", "./bozza.js", "./lib/msal-browser.min.js", "./manifest.webmanifest",

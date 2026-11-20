@@ -16,6 +16,8 @@ h3 { font-size: 18px; font-weight: 900; }
 .btn { font-family: inherit; font-size: 15px; font-weight: 700; border: 0; border-radius: 10px; padding: 0 18px; min-height: 46px; cursor: pointer; background: var(--blu); color: #fff; }
 .btn:hover { background: var(--blu-scuro); }
 .btn.verde { background: #2D6A1F; }
+a.btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; color: #fff; }
+a.btn:hover { color: #fff; }
 .btn2 { font-family: inherit; font-size: 15px; font-weight: 700; border: 1px solid var(--bordo-campo); border-radius: 10px; padding: 0 16px; min-height: 46px; cursor: pointer; background: #fff; color: var(--blu); display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
 .btn2:hover { background: #EEF2F8; }
 .btn2.piccolo { min-height: 40px; font-size: 14px; }
