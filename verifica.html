@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PILOTA DVR – Verifica liste</title>
+<link rel="stylesheet" href="app.css">
+<style>
+  table { border-collapse: collapse; width: 100%; font-size: 14px; background: #fff; }
+  th, td { border-bottom: 1px solid var(--bordo); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--fondo); }
+  details { margin-bottom: 8px; background: #fff; border: 1px solid var(--bordo); border-radius: 10px; padding: 10px 14px; }
+  code { background: #EEF1F5; padding: 1px 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="barra">
+  <a class="btn2" style="display:inline-flex;align-items:center;text-decoration:none" href="./">‹ App</a>
+  <span class="titolo">Verifica colonne delle liste SharePoint</span>
+</div>
+<main>
+  <div id="stato" class="box" style="margin-bottom:16px">Collegamento…</div>
+  <div style="display:flex;gap:10px;margin-bottom:16px">
+    <button class="btn" id="leggi" disabled>Leggi le colonne di tutte le liste PD_</button>
+    <button class="btn2" id="scarica" hidden>Scarica il risultato (.json)</button>
+  </div>
+  <div id="esito"></div>
+</main>
+<script src="lib/msal-browser.min.js"></script>
+<script src="config.js"></script>
+<script type="module" src="verifica.js"></script>
+</body>
+</html>
