@@ -38,9 +38,9 @@ async function token() {
   }
 }
 
-export async function graph(percorso) {
+export async function graph(percorso, intestazioni = {}) {
   const url = percorso.startsWith("http") ? percorso : GRAPH + percorso;
-  const r = await fetch(url, { headers: { Authorization: "Bearer " + (await token()) } });
+  const r = await fetch(url, { headers: { Authorization: "Bearer " + (await token()), ...intestazioni } });
   if (!r.ok) {
     let msg = r.status + " " + r.statusText;
     try { const j = await r.json(); msg += " – " + (j.error && j.error.message); } catch (_) {}
@@ -52,10 +52,10 @@ export async function graph(percorso) {
 }
 
 // Legge tutte le pagine di un elenco Graph
-export async function graphTutto(percorso) {
+export async function graphTutto(percorso, intestazioni = {}) {
   let out = [], url = percorso;
   while (url) {
-    const j = await graph(url);
+    const j = await graph(url, intestazioni);
     out = out.concat(j.value || []);
     url = j["@odata.nextLink"];
   }
@@ -68,4 +68,11 @@ export async function sito() {
     sitoCache = await graph("/sites/" + C.sitoHost + ":" + C.sitoPercorso + "?$select=id,displayName,webUrl");
   }
   return sitoCache;
+}
+
+// Scarica un file (es. una foto) come Blob
+export async function graphBlob(percorso) {
+  const r = await fetch(GRAPH + percorso, { headers: { Authorization: "Bearer " + (await token()) } });
+  if (!r.ok) throw new Error(r.status + " " + r.statusText);
+  return r.blob();
 }

@@ -37,3 +37,13 @@ export async function chiavi(prefisso) {
     r.onerror = () => ko(r.error);
   });
 }
+
+export async function cancella(chiave) {
+  const db = await apri();
+  return new Promise((ok, ko) => {
+    const t = db.transaction(ST, "readwrite");
+    t.objectStore(ST).delete(chiave);
+    t.oncomplete = () => ok();
+    t.onerror = () => ko(t.error);
+  });
+}

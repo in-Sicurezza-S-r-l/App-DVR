@@ -1,5 +1,5 @@
 // Dati delle aziende: lettura da SharePoint (PD_Aziende, PD_Sopralluoghi) con copia sul tablet
-import { graphTutto, sito } from "./auth.js";
+import { graphTutto, graphBlob, sito } from "./auth.js";
 import { leggi, scrivi, chiavi } from "./store.js";
 
 export const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
@@ -106,4 +106,96 @@ export function calcolaStato(pacchetto, bozze) {
     }
     return { ...a, stato, testoStato: testo };
   });
+}
+
+// ======================================================================
+// Scheda completa di un'azienda (liste PD_ filtrate per CodiceAzienda)
+// ======================================================================
+const dividi = v => String(v ?? "").split(/\s*;\s*/).map(x => x.trim()).filter(Boolean);
+const vero = v => v === true || /^(s[iì]|yes|true|1|x)$/i.test(String(v ?? "").trim());
+
+// Righe di una lista per un'azienda: prova il filtro su SharePoint, altrimenti legge tutto e filtra qui
+async function righeAzienda(base, lista, codice) {
+  const prefer = { Prefer: "HonorNonIndexedQueriesWarningMayFailRandomly" };
+  const mappa = i => ({ ...i.fields, _creato: i.createdDateTime, _modificato: i.lastModifiedDateTime, _idLista: i.id });
+  try {
+    const r = await graphTutto(base + lista + "/items?$expand=fields&$top=999&$filter=fields/CodiceAzienda eq '" + codice + "'", prefer);
+    return r.map(mappa);
+  } catch (e) {
+    if (e.status === 404) return [];           // lista inesistente
+    const tutte = await graphTutto(base + lista + "/items?$expand=fields&$top=999");
+    return tutte.map(mappa).filter(f => normCodice(f.CodiceAzienda) === codice);
+  }
+}
+
+async function righeTutte(base, lista) {
+  try { return (await graphTutto(base + lista + "/items?$expand=fields&$top=999")).map(i => i.fields); }
+  catch (_) { return []; }
+}
+
+export async function scaricaAzienda(codice) {
+  const s = await sito();
+  const base = "/sites/" + s.id + "/lists/";
+  const [anag, lav, form, att, sos, mans, pre, imp, vc, catC, catP] = await Promise.all([
+    righeAzienda(base, "PD_Anagrafica", codice), righeAzienda(base, "PD_Lavoratori", codice),
+    righeAzienda(base, "PD_Formazione", codice), righeAzienda(base, "PD_Attrezzature", codice),
+    righeAzienda(base, "PD_Sostanze", codice), righeAzienda(base, "PD_Mansioni", codice),
+    righeAzienda(base, "PD_Prescrizioni", codice), righeAzienda(base, "PD_Impianti", codice),
+    righeAzienda(base, "PD_ValChimica", codice),
+    righeTutte(base, "PD_CatalogoCorsi"), righeTutte(base, "PD_CatalogoPrescrizioni")
+  ]);
+  const ultima = anag.sort((a, b) => String(b._modificato).localeCompare(String(a._modificato)))[0] || {};
+  const i = imp[0] || {};
+  const pacchetto = {
+    codice, scaricatoIl: new Date().toISOString(),
+    anagrafica: {
+      sedeLegale: ultima.IndirizzoSedeLegale || "", sedeOperativa: ultima.IndirizzoSedeOperativa || "",
+      partitaIva: ultima.PartitaIVA || "", email: ultima.Email || "", telefono: ultima.Telefono || "", cellulare: ultima.Cellulare || "",
+      datoreLavoro: ultima.DatoreLavoro || "", rspp: ultima.RSPP || "", medicoCompetente: ultima.MedicoCompetente || "",
+      rls: ultima.RLS || "", preposti: ultima.Preposti || ""
+    },
+    mansioni: mans.filter(m => m.Attiva === undefined || vero(m.Attiva)).map(m => m.Title).filter(Boolean).sort(),
+    lavoratori: lav.filter(l => String(l.Stato || "ATTIVO").toUpperCase() !== "CESSATO").map(l => ({
+      id: l.IDLavoratore || l._idLista, idLista: l._idLista, nome: l.Title || "", reparto: l.Reparto || "",
+      mansioni: dividi(l.Mansione), stato: "ATTIVO", dataIngresso: l.DataIngresso || "",
+      addettoAI: vero(l.AddettoAI), addettoPS: vero(l.AddettoPS), rls: vero(l.RLS), preposto: vero(l.Preposto)
+    })),
+    formazione: form.map(f => ({
+      id: f.IDFormazione || f._idLista, idLista: f._idLista, lavoratore: f.Title || "", corso: f.Corso || "",
+      data: f.DataCorso || "", scadenza: f.ScadenzaCorso || "", stato: String(f.Stato || "REGISTRATA").toUpperCase()
+    })),
+    attrezzature: att.filter(a => String(a.Stato || "ATTIVA").toUpperCase() !== "ELIMINATA").map(a => ({
+      id: a.IDAttrezzatura || a._idLista, idLista: a._idLista, nome: a.Title || "", marca: a.MarcaModello || "",
+      mansioni: dividi(a.Mansioni), stato: "ATTIVA"
+    })),
+    sostanze: sos.filter(x => !/ELIMINAT/i.test(String(x.Stato || ""))).map(x => {
+      const valutazioni = vc.filter(v => String(v.Sostanza || "").toLowerCase() === String(x.Title || "").toLowerCase());
+      return {
+        id: x.IDSostanza || x._idLista, idLista: x._idLista, nome: x.Title || "", produttore: x.Produttore || "",
+        statoFisico: x.StatoFisico || "", frasiH: dividi(String(x.IndicazioniPericolo || "").replace(/,/g, ";")),
+        mansioni: dividi(x.Mansioni), sds: vero(x.SDSDisponibile) || !!x.FileSDS, revisione: x.RevisioneSDS || "",
+        avvisi: x.AvvisiSDS || "", esito: valutazioni.length ? "valutata (" + valutazioni.length + " mansioni)" : ""
+      };
+    }),
+    prescrizioni: pre.filter(p => String(p.Stato || "APERTA").toUpperCase() !== "RISOLTA").map(p => ({
+      id: p.Title || p._idLista, idLista: p._idLista, zona: p.Zona || "", testo: p.Testo || "",
+      foto: dividi(p.Foto), stato: "APERTA", dataApertura: p.DataApertura || ""
+    })),
+    impianto: { dicoPresente: i.DicoPresente || "", dicoDitta: i.DicoDitta || "", dicoData: i.DicoData || "",
+      terraData: i.TerraData || "", terraOrganismo: i.TerraOrganismo || "", terraPeriodicita: i.TerraPeriodicita || "" },
+    catalogoCorsi: catC.map(c => ({ nome: c.Title || c.Corso || "", giorni: Number(c.PeriodicitaGiorni) || 0 })).filter(c => c.nome),
+    catalogoPrescrizioni: catP.map(c => ({ zona: c.Zona || "", testo: c.Testo || c.Title || "" })).filter(c => c.testo)
+  };
+  await scrivi("azienda:" + codice, pacchetto);
+  return pacchetto;
+}
+
+export const aziendaSalvata = codice => leggi("azienda:" + codice);
+
+// Percorso di una foto nella cartella del cliente (libreria Documenti condivisi › Documenti › cartella cliente)
+export async function scaricaFoto(cartella, nome) {
+  const s = await sito();
+  const percorso = ["Documenti", ...String(cartella).split(/[\\/]+/), "Foto sopralluogo", nome]
+    .filter(Boolean).map(encodeURIComponent).join("/");
+  return graphBlob("/sites/" + s.id + "/drive/root:/" + percorso + ":/content");
 }
